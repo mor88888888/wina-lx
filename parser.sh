@@ -51,9 +51,43 @@ PREF=$root_dir/Windows/Prefetch
 LOG_SEC=$root_dir/Windows/System32/winevt/Logs/Security.evtx
 LOG_SYS=$root_dir/Windows/System32/winevt/Logs/System.evtx
 LOG_PWSH="${root_dir}/Windows/System32/winevt/Logs/Windows PowerShell.evtx"
-LOG_PWOP=$root_dir/Windows/System32/winevt/Logs/"Microsoft-Windows-PowerShell%4Operational.evtx"
+LOG_PWOP="$root_dir/Windows/System32/winevt/Logs/Microsoft-Windows-PowerShell%4Operational.evtx"
 LNK_STARTS="${root_dir}/ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp"
 TASKS=$root_dir/Windows/System32/Tasks
+
+# Corrige un path usando comparaciones case-insensitive
+resolve_case_path() {
+    local path="$1"
+    local current=""
+    local component=""
+    local match=""
+ 
+    # Mantener path absoluto o relativo
+    if [[ "$path" == /* ]]; then
+        current="/"
+        path="${path#/}"
+    fi
+ 
+    IFS='/' read -ra parts <<< "$path"
+ 
+    for component in "${parts[@]}"; do
+        [[ -z "$component" ]] && continue
+ 
+        match=$(find "$current" -maxdepth 1 -mindepth 1 \
+            -iname "$component" \
+            -printf '%f\n' 2>/dev/null | head -n1)
+ 
+        if [[ -n "$match" ]]; then
+            current="${current%/}/$match"
+        else
+            # Si no existe, devolver el original
+            echo "$1"
+            return 1
+        fi
+    done
+ 
+    echo "$current"
+}
 
 # Test regripper and create output folder
 computername=$($regripper -r $SYSTEM -p compname 2>/dev/null | grep -i "ComputerName" -A 1 | tail -1 | awk '{print $NF}');
@@ -66,7 +100,33 @@ fi
 echo "[INFO] Equipo a analizar: $computername"
 mkdir -p "$output_dir/$computername"
 
-# Create dir structure
+# Check and correct input paths
+paths=(
+    SAM
+    SYSTEM
+    SOFTWARE
+    AMCACHE
+    MFT
+    PREF
+    LOG_SEC
+    LOG_SYS
+    LOG_PWSH
+    LOG_PWOP
+    LNK_STARTS
+    TASKS
+)
+ 
+for var in "${paths[@]}"; do
+    corrected=$(resolve_case_path "${!var}")
+ 
+    if [[ $? -eq 0 ]]; then
+        printf -v "$var" '%s' "$corrected"
+    else
+        echo "[WARN] No encontrado: ${!var}" >>"$output_dir/${computername}-log.txt"
+    fi
+done
+
+# Create output dir structure
 init_dir=$output_dir/$computername/initial; mkdir $init_dir
 per_dir=$output_dir/$computername/persistence; mkdir $per_dir
 exec_dir=$output_dir/$computername/execution; mkdir $exec_dir
@@ -136,7 +196,7 @@ fi
 # MFT
 echo "[INFO] Procesando MFT"
 if [ -f $AMCACHE ]; then
-	analyzemft -f $MFT -o $fs_dir/mft.csv --csv 2>>"$output_dir/${computername}-log.txt"
+	analyzemft -f $MFT -o $fs_dir/mft.csv --csv 2>>"$output_dir/${computername}-mft-log.txt"
 else
 	echo "[WARN] ${MFT} not found"
 fi
@@ -155,16 +215,16 @@ else
 	echo "[WARN] ${LOG_SYS} not found"
 fi
 
-if [ -f "${LOG_PWSH}" ]; then
-	$evtx_dump $LOG_PWSH -o jsonl -f $logs_dir/ps.json 2>>"$output_dir/${computername}-log.txt"
+if [ -f "$LOG_PWSH" ]; then
+	$evtx_dump "$LOG_PWSH" -o jsonl -f $logs_dir/ps.json 2>>"$output_dir/${computername}-log.txt"
 else
 	echo "[WARN] ${LOG_PWSH} not found"
 fi
 
-if [ -f $LOG_PSOP ]; then
-	$evtx_dump $LOG_PSOP -o jsonl -f $logs_dir/ps-op.json 2>>"$output_dir/${computername}-log.txt"
+if [ -f $LOG_PWOP ]; then
+	$evtx_dump $LOG_PWOP -o jsonl -f $logs_dir/ps-op.json 2>>"$output_dir/${computername}-log.txt"
 else
-	echo "[WARN] ${LOG_PSOP} not found"
+	echo "[WARN] ${LOG_PWOP} not found"
 fi
 
 # LNKs - https://github.com/Matmaus/LnkParse3
@@ -189,6 +249,28 @@ if [ -d "$root_dir/Users" ]; then
 		LNK_OFFICE=$userfolder/AppData/Roaming/Microsoft/Office/Recent
 		LNK_DESKTP=$userfolder/Desktop
 		LNK_STARTU=$userfolder/AppData/Roaming/Microsoft/Windows/Start\ Menu/Programs/Startup
+		
+		paths=(
+		    NTUSERDAT
+		    USRCLASS
+		    EDGE
+		    CHROME
+		    FIREFOX
+		    LNK_RECENT
+		    LNK_OFFICE
+		    LNK_DESKTP
+		    LNK_STARTU
+		)
+		
+		for var in "${paths[@]}"; do
+		    corrected=$(resolve_case_path "${!var}")
+		 
+		    if [[ $? -eq 0 ]]; then
+		        printf -v "$var" '%s' "$corrected"
+		    else
+		        echo "[WARN] No encontrado: ${!var}" >>"$output_dir/${computername}-log.txt"
+		    fi
+		done
 
 		# Create folder structure
 		mkdir -p $init_dir/user/$user
