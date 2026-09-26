@@ -1,7 +1,10 @@
 #!/bin/bash
 
-regripper='perl /opt/RegRipper4.0/rip.pl'
-evtx_dump='/opt/evtx_dump'
+SCRIPT_DIR=$(dirname $0)
+
+regripper="perl ${SCRIPT_DIR}/bin/RegRipper4.0/rip.pl"
+evtx_dump="${SCRIPT_DIR}/bin/evtx_dump"
+hindsight="${SCRIPT_DIR}/bin/hindsight"
 
 # Check if regripper is installed ()
 if ! command -v $regripper >/dev/null 2>&1; then
@@ -15,9 +18,21 @@ if ! command -v $evtx_dump >/dev/null 2>&1; then
     exit 1
 fi
 
-# Check if evtx_dump is installed (pip3 install analyzeMFT)
+# Check if lnkparse is installed (https://github.com/RyanDFIR/hindsight/)
+if ! command -v $hindsight >/dev/null 2>&1; then
+    echo "[ERROR] Hindsight no está instalado o no se encuentra en el PATH."
+    exit 1
+fi
+
+# Check if analyzemft is installed (https://github.com/rowingdude/analyzeMFT - pip3 install analyzeMFT)
 if ! command -v analyzemft >/dev/null 2>&1; then
     echo "[ERROR] analyzeMFT no está instalado o no se encuentra en el PATH."
+    exit 1
+fi
+
+# Check if lnkparse is installed (https://github.com/Matmaus/LnkParse3 - pip3 install LnkParse3)
+if ! command -v lnkparse >/dev/null 2>&1; then
+    echo "[ERROR] LNKParser3 no está instalado o no se encuentra en el PATH."
     exit 1
 fi
 
@@ -47,7 +62,7 @@ SYSTEM=$root_dir/Windows/System32/config/SYSTEM
 SOFTWARE=$root_dir/Windows/System32/config/SOFTWARE
 AMCACHE=$root_dir/Windows/appcompat/Programs/Amcache.hve
 MFT=$root_dir/'$MFT'
-PREF=$root_dir/Windows/Prefetch
+#PREF=$root_dir/Windows/Prefetch
 LOG_SEC=$root_dir/Windows/System32/winevt/Logs/Security.evtx
 LOG_SYS=$root_dir/Windows/System32/winevt/Logs/System.evtx
 LOG_PWSH="${root_dir}/Windows/System32/winevt/Logs/Windows PowerShell.evtx"
@@ -107,7 +122,7 @@ paths=(
     SOFTWARE
     AMCACHE
     MFT
-    PREF
+    #PREF
     LOG_SEC
     LOG_SYS
     LOG_PWSH
@@ -133,6 +148,7 @@ exec_dir=$output_dir/$computername/execution; mkdir $exec_dir
 fs_dir=$output_dir/$computername/filesystem; mkdir $fs_dir
 web_dir=$output_dir/$computername/web; mkdir $web_dir
 logs_dir=$output_dir/$computername/logs; mkdir $logs_dir
+tasks_dir=$per_dir/Tasks; mkdir $tasks_dir
 
 # SAM
 echo "[INFO] Procesando SAM"
@@ -184,14 +200,15 @@ else
 	echo "[WARN] ${AMCACHE} not found"
 fi
 
-# Prefetch - https://github.com/PoorBillionaire/Windows-Prefetch-Parser
+# Prefetch
 echo "[INFO] Procesando PREFETCH"
-if [ -d $PREF ]; then
-	$regripper -r $SYSTEM -p prefetch > $init_dir/prefetch-config.txt 2>>"$output_dir/${computername}-log.txt"
-	#python3 prefetch.py -f $PREF/*.pf -c $exec_dir/prefetch.csv
-else
-	echo "[WARN] ${PREF} not found"
-fi
+$regripper -r $SYSTEM -p prefetch > $init_dir/prefetch-config.txt 2>>"$output_dir/${computername}-log.txt"
+
+#if [ -d $PREF ]; then
+#	???
+#else
+#	echo "[WARN] ${PREF} not found"
+#fi
 
 # MFT
 echo "[INFO] Procesando MFT"
@@ -227,11 +244,31 @@ else
 	echo "[WARN] ${LOG_PWOP} not found"
 fi
 
-# LNKs - https://github.com/Matmaus/LnkParse3
-#> $fs_dir/lnk.csv
+# TASKS
+echo "[INFO] Procesando Tareas"
+# Verificar que el directorio existe
+if [ -d "$TASKS" ]; then
+    cp -r $TASKS $tasks_dir
+else
+	echo "[WARN]: El directorio $TASKS no existe"
+fi
 
-# TASKS (xml)
-# > $per_dir/tasks.txt
+# LNKs
+echo "[INFO] Procesando LNKs"
+# Verificar que el directorio existe
+if [ ! -d "$LNK_STARTS" ]; then
+    echo "[WARN] $LNK_STARTS not found"
+fi
+
+for file in "$LNK_STARTS"/*.lnk; do
+    # Saltar si no hay archivos .lnk (el patrón no coincide)
+    [ -e "$file" ] || continue
+    
+    # Ejecutar lnkparse sobre el archivo
+    echo "Procesando: $file" >>"$output_dir/${computername}-log.txt"
+    lnkparse -t "$file" >> $per_dir/startup-lnk-targets.txt
+done
+
 
 # NTUSER.DAT
 if [ -d "$root_dir/Users" ]; then
@@ -321,14 +358,71 @@ if [ -d "$root_dir/Users" ]; then
 	    else
 			echo "[WARN] ${USRCLASS} not found"
 	    fi
-	    
-	    # Web Browsers - https://github.com/RyanDFIR/hindsight/
-		#> $web_dir/chrome
-		#> $web_dir/edge
-		#> $web_dir/firefox
 		
-		# LNKs - https://github.com/Matmaus/LnkParse3
-		#> $fs_dir/lnk.csv
+		# LNKs
+		
+		## Automatically created LNK on files access:
+		# C:\Users\%USERNAME%\AppData\Roaming\Microsoft\Windows\Recent\*.lnk
+		for file in "$LNK_RECENT"/*.lnk; do
+		    # Saltar si no hay archivos .lnk (el patrón no coincide)
+		    [ -e "$file" ] || continue
+		    
+		    # Ejecutar lnkparse sobre el archivo
+		    echo "Procesando: $file" >>"$output_dir/${computername}-log.txt"
+		    lnkparse -t "$file" >> "$fs_dir/user/${user}/recent-lnk-targets.txt"
+		done
+		
+		## Automatically created LNK for documents opened using Microsoft Office products:
+		# C:\Users\%USERNAME%\AppData\Roaming\Microsoft\Office\Recent\*.lnk
+		for file in "$LNK_OFFICE"/*.lnk; do
+		    # Saltar si no hay archivos .lnk (el patrón no coincide)
+		    [ -e "$file" ] || continue
+		    
+		    # Ejecutar lnkparse sobre el archivo
+		    echo "Procesando: $file" >>"$output_dir/${computername}-log.txt"
+		    lnkparse -t "$file" >> "$fs_dir/user/${user}/office-lnk-targets.txt"
+		done
 	    
+	    ## Users Desktop folder:
+		# C:\Users\%USERNAME%\Desktop\*.lnk
+		for file in "$LNK_DESKTP"/*.lnk; do
+		    # Saltar si no hay archivos .lnk (el patrón no coincide)
+		    [ -e "$file" ] || continue
+		    
+		    # Ejecutar lnkparse sobre el archivo
+		    echo "Procesando: $file" >>"$output_dir/${computername}-log.txt"
+		    lnkparse -t "$file" >> "$fs_dir/user/${user}/desktop-lnk-targets.txt"
+		done
+		
+		## Startup folders:
+		# C:\Users\%USERNAME%\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup\*.lnk
+		for file in "$LNK_STARTU"/*.lnk; do
+		    # Saltar si no hay archivos .lnk (el patrón no coincide)
+		    [ -e "$file" ] || continue
+		    
+		    # Ejecutar lnkparse sobre el archivo
+		    echo "Procesando: $file" >>"$output_dir/${computername}-log.txt"
+		    lnkparse -t "$file" >> "$fs_dir/user/${user}/startup-lnk-targets.txt"
+		done
+		
+		# Web Browsers
+		if [ -d "$EDGE" ]; then
+		    $hindsight -i "$EDGE" -o "$web_dir/user/${user}/edge" -l "$output_dir/${computername}-hindsight-log.txt" >/dev/null 2>&1
+		else
+			echo "[WARN]: El directorio $EDGE no existe" >>"$output_dir/${computername}-log.txt"
+		fi
+		
+		if [ -d "$CHROME" ]; then
+		    $hindsight -i "$CHROME" -o "$web_dir/user/${user}/chrome" -l "$output_dir/${computername}-hindsight-log.txt" >/dev/null 2>&1
+		else
+			echo "[WARN]: El directorio $CHROME no existe" >>"$output_dir/${computername}-log.txt"
+		fi
+		
+		if [ -d "$FIREFOX" ]; then
+		    $hindsight -i "$FIREFOX" -o "$web_dir/user/${user}/firefox" -l "$output_dir/${computername}-hindsight-log.txt" >/dev/null 2>&1
+		else
+			echo "[WARN]: El directorio $FIREFOX no existe" >>"$output_dir/${computername}-log.txt"
+		fi
+  
 	done
 fi
