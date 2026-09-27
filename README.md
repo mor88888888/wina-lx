@@ -1,6 +1,6 @@
-# Windows Forensic Artifact Collector
+# Windows Forensic Artifact Parser
 
-A Bash automation script for systematic digital forensic evidence collection from Windows systems. This script orchestrates multiple forensic tools to extract, parse, and organize artifacts into categorized output directories.
+A Bash automation script for systematic digital forensic evidence parsing from Windows systems artifacts. This script orchestrates multiple forensic tools to extract, parse, and organize artifacts into categorized output directories.
 
 [![Licencia](https://img.shields.io/github/license/mor88888888/cntlm-wizard-for-linux?style=flat-square)](LICENSE) [![Linux](https://img.shields.io/badge/Platform-Linux-blue?style=flat-square&logo=linux)]() 
 
