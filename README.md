@@ -18,13 +18,15 @@ This tool automates the collection of key Windows forensic artifacts including:
 
 ## Prerequisites
 
-Ensure the following tools are installed and accessible in your PATH:
+Ensure the following tools are installed and accessible in your PATH or in `./bin/`:
 
 | Tool         | Purpose                                | Repository                                                |
 | ------------ | -------------------------------------- | --------------------------------------------------------- |
 | `rip.pl`     | Registry hive analysis (RegRipper 4.0) | [RegRipper](https://github.com/keydet89/RegRipper3.0)     |
-| `evtx_dump`  | Windows Event Log parsing              | [EVTX-MSG-PARSER](https://github.com/omerbenamram/evtx)   |
+| `evtx_dump`  | Windows Event Log parsing              | [evtx_dump](https://github.com/omerbenamram/evtx)         |
 | `analyzemft` | MFT record extraction                  | [analyzeMFT](https://github.com/teamdfir/AnalyzingTheMFT) |
+| `hindsight`  | Chrome browser history analysis        | [Hindsight](https://github.com/RyanDFIR/hindsight/)       |
+| `LnkParse3`  | Windows shortcut (.lnk) file parsing   | [LnkParse3](https://github.com/Matmaus/LnkParse3)         |
 
 ## Usage
 
@@ -49,7 +51,14 @@ Output structure:
 - Case-insensitive path resolution is performed automatically
 - Warnings for missing artifacts are logged to `<computername>-log.txt`
 - Each operation appends errors to `<computername>-log.txt` for audit purposes
-- Browser artifact parsing (Hindsight, etc.) requires additional setup (commented in script)
+
+## ToDo
+
+- [ ] Parse prefetech
+
+- [ ] Group output by phases for incremental AI processing
+
+- [ ] Simplify architecture through modular refactoring
 
 ## License
 
