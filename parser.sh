@@ -37,8 +37,8 @@ if ! command -v lnkparse >/dev/null 2>&1; then
 fi
 
 # Declare input/output paths
-root_dir="${1%/}"
-output_dir="${2%/}"
+root_dir=$(realpath "${1%/}"); echo "[DEBUG] Path = $1"
+output_dir=$(realpath "${2%/}"); echo "[DEBUG] Current = '$current'"
 
 # Validar que no estén vacíos
 if [ -z "$root_dir" ] || [ -z "$output_dir" ]; then
@@ -73,14 +73,16 @@ TASKS=$root_dir/Windows/System32/Tasks
 # Corrige un path usando comparaciones case-insensitive
 resolve_case_path() {
     local path="$1"
-    local current=""
-    local component=""
-    local match=""
+    local current
+    local component
+    local match
  
     # Mantener path absoluto o relativo
     if [[ "$path" == /* ]]; then
         current="/"
         path="${path#/}"
+    else
+    	current="."
     fi
  
     IFS='/' read -ra parts <<< "$path"
@@ -103,17 +105,6 @@ resolve_case_path() {
  
     echo "$current"
 }
-
-# Test regripper and create output folder
-computername=$($regripper -r $SYSTEM -p compname 2>/dev/null | grep -i "ComputerName" -A 1 | tail -1 | awk '{print $NF}');
-
-if [[ -z "$computername" ]]; then
-    echo "[ERROR] No se pudo obtener el nombre del equipo del SYSTEM hive. Verifica que: $SYSTEM exista"
-    exit 1
-fi
-
-echo "[INFO] Equipo a analizar: $computername"
-mkdir -p "$output_dir/$computername"
 
 # Check and correct input paths
 paths=(
@@ -140,6 +131,17 @@ for var in "${paths[@]}"; do
         echo "[WARN] No encontrado: ${!var}" >>"$output_dir/${computername}-log.txt"
     fi
 done
+
+# Test regripper and create output folder
+computername=$($regripper -r $SYSTEM -p compname 2>/dev/null | grep -i "ComputerName" -A 1 | tail -1 | awk '{print $NF}');
+
+if [[ -z "$computername" ]]; then
+    echo "[ERROR] No se pudo obtener el nombre del equipo del SYSTEM hive. Verifica que: $SYSTEM exista"
+    exit 1
+fi
+
+echo "[INFO] Equipo a analizar: $computername"
+mkdir -p "$output_dir/$computername"
 
 # Create output dir structure
 init_dir=$output_dir/$computername/SYSTEM/initial; mkdir -p $init_dir
@@ -211,7 +213,7 @@ $regripper -r $SYSTEM -p prefetch > $init_dir/prefetch-config.txt 2>>"$output_di
 
 # MFT
 echo "[INFO] Procesando MFT"
-if [ -f $AMCACHE ]; then
+if [ -f $MFT ]; then
 	analyzemft -f $MFT -o $fs_dir/mft.csv --csv 2>>"$output_dir/${computername}-mft-log.txt"
 else
 	echo "[WARN] ${MFT} not found"
@@ -406,18 +408,21 @@ if [ -d "$root_dir/Users" ]; then
 		# Web Browsers
 		if [ -d "$EDGE" ]; then
 		    $hindsight -i "$EDGE" -o "$web_dir/edge" -l "$output_dir/${computername}-hindsight-log.txt" >/dev/null 2>&1
+		    $hindsight -i "$EDGE" -o "$web_dir/edge" -f jsonl -l "$output_dir/${computername}-hindsight-log.txt" >/dev/null 2>&1
 		else
 			echo "[WARN]: El directorio $EDGE no existe" >>"$output_dir/${computername}-log.txt"
 		fi
 		
 		if [ -d "$CHROME" ]; then
 		    $hindsight -i "$CHROME" -o "$web_dir/chrome" -l "$output_dir/${computername}-hindsight-log.txt" >/dev/null 2>&1
+		    $hindsight -i "$CHROME" -o "$web_dir/chrome" -f jsonl -l "$output_dir/${computername}-hindsight-log.txt" >/dev/null 2>&1
 		else
 			echo "[WARN]: El directorio $CHROME no existe" >>"$output_dir/${computername}-log.txt"
 		fi
 		
 		if [ -d "$FIREFOX" ]; then
 		    $hindsight -i "$FIREFOX" -o "$web_dir/firefox" -l "$output_dir/${computername}-hindsight-log.txt" >/dev/null 2>&1
+		    $hindsight -i "$FIREFOX" -o "$web_dir/firefox" -f jsonl -l "$output_dir/${computername}-hindsight-log.txt" >/dev/null 2>&1
 		else
 			echo "[WARN]: El directorio $FIREFOX no existe" >>"$output_dir/${computername}-log.txt"
 		fi
