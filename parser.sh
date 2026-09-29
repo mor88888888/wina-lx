@@ -66,7 +66,7 @@ MFT=$root_dir/'$MFT'
 LOG_SEC=$root_dir/Windows/System32/winevt/Logs/Security.evtx
 LOG_SYS=$root_dir/Windows/System32/winevt/Logs/System.evtx
 LOG_PWSH="${root_dir}/Windows/System32/winevt/Logs/Windows PowerShell.evtx"
-LOG_PWOP="$root_dir/Windows/System32/winevt/Logs/Microsoft-Windows-PowerShell%4Operational.evtx"
+LOG_PWOP="${root_dir}/Windows/System32/winevt/Logs/Microsoft-Windows-PowerShell%4Operational.evtx"
 LNK_STARTS="${root_dir}/ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp"
 TASKS=$root_dir/Windows/System32/Tasks
 
@@ -142,13 +142,12 @@ for var in "${paths[@]}"; do
 done
 
 # Create output dir structure
-init_dir=$output_dir/$computername/initial; mkdir $init_dir
-per_dir=$output_dir/$computername/persistence; mkdir $per_dir
-exec_dir=$output_dir/$computername/execution; mkdir $exec_dir
-fs_dir=$output_dir/$computername/filesystem; mkdir $fs_dir
-web_dir=$output_dir/$computername/web; mkdir $web_dir
-logs_dir=$output_dir/$computername/logs; mkdir $logs_dir
-tasks_dir=$per_dir/Tasks; mkdir $tasks_dir
+init_dir=$output_dir/$computername/SYSTEM/initial; mkdir -p $init_dir
+per_dir=$output_dir/$computername/SYSTEM/persistence; mkdir -p $per_dir
+exec_dir=$output_dir/$computername/SYSTEM/execution; mkdir -p $exec_dir
+fs_dir=$output_dir/$computername/SYSTEM/filesystem; mkdir -p $fs_dir
+logs_dir=$output_dir/$computername/SYSTEM/logs; mkdir -p $logs_dir
+tasks_dir=$per_dir/SYSTEM/tasks; mkdir -p $tasks_dir
 
 # SAM
 echo "[INFO] Procesando SAM"
@@ -269,8 +268,6 @@ for file in "$LNK_STARTS"/*.lnk; do
     lnkparse -t "$file" >> $per_dir/startup-lnk-targets.txt
 done
 
-
-# NTUSER.DAT
 if [ -d "$root_dir/Users" ]; then
 	for userfolder in "$root_dir/Users/"* ; do
 		user=$(basename "$userfolder")
@@ -308,53 +305,54 @@ if [ -d "$root_dir/Users" ]; then
 		        echo "[WARN] No encontrado: ${!var}" >>"$output_dir/${computername}-log.txt"
 		    fi
 		done
-
-		# Create folder structure
-		mkdir -p $init_dir/user/$user
-		mkdir -p $per_dir/user/$user
-		mkdir -p $exec_dir/user/$user
-		mkdir -p $fs_dir/user/$user
-		mkdir -p $web_dir/user/$user
 		
+		# Create folder structure
+		init_dir=$output_dir/$computername/USER/$user/initial; mkdir -p $init_dir
+		per_dir=$output_dir/$computername/USER/$user/persistence; mkdir -p $per_dir
+		exec_dir=$output_dir/$computername/USER/$user/execution; mkdir -p $exec_dir
+		fs_dir=$output_dir/$computername/USER/$user/filesystem; mkdir -p $fs_dir
+		web_dir=$output_dir/$computername/USER/$user/web; mkdir -p $web_dir
+		
+		# NTUSER.DAT
 		if [ -f $NTUSERDAT ]; then
 		    # Initial
-		    $regripper -r $NTUSERDAT -p logonstats > "$init_dir/user/${user}/logonstats.txt" 2>>"$output_dir/${computername}-log.txt"
+		    $regripper -r $NTUSERDAT -p logonstats > "$init_dir/logonstats.txt" 2>>"$output_dir/${computername}-log.txt"
 
 		    # Persistence
-		    $regripper -r $NTUSERDAT -p run > "$per_dir/user/${user}/run.txt" 2>>"$output_dir/${computername}-log.txt"
-		    $regripper -r $NTUSERDAT -p runonceex > "$per_dir/user/${user}/runonceex.txt" 2>>"$output_dir/${computername}-log.txt"
-		    $regripper -r $NTUSERDAT -p tasks > "$per_dir/user/${user}/tasks.txt" 2>>"$output_dir/${computername}-log.txt"
-		    $regripper -r $NTUSERDAT -p gpohist > "$per_dir/user/${user}/gpo.txt" 2>>"$output_dir/${computername}-log.txt"
-		    $regripper -r $NTUSERDAT -p uninstall > "$per_dir/user/${user}/uninstall.txt" 2>>"$output_dir/${computername}-log.txt"
-		    $regripper -r $NTUSERDAT -p appkeys > "$per_dir/user/${user}/appkeys.txt" 2>>"$output_dir/${computername}-log.txt"
-		    $regripper -r $NTUSERDAT -p listsoft > "$per_dir/user/${user}/listsoft.txt" 2>>"$output_dir/${computername}-log.txt"
-		    $regripper -r $NTUSERDAT -p recentapps > "$per_dir/user/${user}/recentapps.txt" 2>>"$output_dir/${computername}-log.txt"
+		    $regripper -r $NTUSERDAT -p run > "$per_dir/run.txt" 2>>"$output_dir/${computername}-log.txt"
+		    $regripper -r $NTUSERDAT -p runonceex > "$per_dir/runonceex.txt" 2>>"$output_dir/${computername}-log.txt"
+		    $regripper -r $NTUSERDAT -p tasks > "$per_dir/tasks.txt" 2>>"$output_dir/${computername}-log.txt"
+		    $regripper -r $NTUSERDAT -p gpohist > "$per_dir/gpo.txt" 2>>"$output_dir/${computername}-log.txt"
+		    $regripper -r $NTUSERDAT -p uninstall > "$per_dir/uninstall.txt" 2>>"$output_dir/${computername}-log.txt"
+		    $regripper -r $NTUSERDAT -p appkeys > "$per_dir/appkeys.txt" 2>>"$output_dir/${computername}-log.txt"
+		    $regripper -r $NTUSERDAT -p listsoft > "$per_dir/listsoft.txt" 2>>"$output_dir/${computername}-log.txt"
+		    $regripper -r $NTUSERDAT -p recentapps > "$per_dir/recentapps.txt" 2>>"$output_dir/${computername}-log.txt"
 
 		    # Filesystem
-		    $regripper -r $NTUSERDAT -p typedurls > "$fs_dir/user/${user}/typedurls.txt" 2>>"$output_dir/${computername}-log.txt"
-		    $regripper -r $NTUSERDAT -p typedpaths > "$fs_dir/user/${user}/typedpaths.txt" 2>>"$output_dir/${computername}-log.txt"
-		    $regripper -r $NTUSERDAT -p recentdocs > "$fs_dir/user/${user}/recentdocs.txt" 2>>"$output_dir/${computername}-log.txt"
-		    $regripper -r $NTUSERDAT -p winrar > "$fs_dir/user/${user}/winrar.txt" 2>>"$output_dir/${computername}-log.txt"
-		    $regripper -r $NTUSERDAT -p sevenzip > "$fs_dir/user/${user}/7zip.txt" 2>>"$output_dir/${computername}-log.txt"
-		    $regripper -r $NTUSERDAT -p mmc > "$fs_dir/user/${user}/mmc.txt" 2>>"$output_dir/${computername}-log.txt"
+		    $regripper -r $NTUSERDAT -p typedurls > "$fs_dir/typedurls.txt" 2>>"$output_dir/${computername}-log.txt"
+		    $regripper -r $NTUSERDAT -p typedpaths > "$fs_dir/typedpaths.txt" 2>>"$output_dir/${computername}-log.txt"
+		    $regripper -r $NTUSERDAT -p recentdocs > "$fs_dir/recentdocs.txt" 2>>"$output_dir/${computername}-log.txt"
+		    $regripper -r $NTUSERDAT -p winrar > "$fs_dir/winrar.txt" 2>>"$output_dir/${computername}-log.txt"
+		    $regripper -r $NTUSERDAT -p sevenzip > "$fs_dir/7zip.txt" 2>>"$output_dir/${computername}-log.txt"
+		    $regripper -r $NTUSERDAT -p mmc > "$fs_dir/mmc.txt" 2>>"$output_dir/${computername}-log.txt"
 
 		    # Execution
-		    $regripper -r $NTUSERDAT -p userassist > "$exec_dir/user/${user}/userassist.txt" 2>>"$output_dir/${computername}-log.txt"
-		    $regripper -r $NTUSERDAT -p jumplistdata > "$exec_dir/user/${user}/jumplist.txt" 2>>"$output_dir/${computername}-log.txt"
-		    $regripper -r $NTUSERDAT -p runmru > "$exec_dir/user/${user}/mru.txt" 2>>"$output_dir/${computername}-log.txt"
-		    $regripper -r $NTUSERDAT -p muicache > "$exec_dir/user/${user}/muicache-ntuser.txt" 2>>"$output_dir/${computername}-log.txt"
+		    $regripper -r $NTUSERDAT -p userassist > "$exec_dir/userassist.txt" 2>>"$output_dir/${computername}-log.txt"
+		    $regripper -r $NTUSERDAT -p jumplistdata > "$exec_dir/jumplist.txt" 2>>"$output_dir/${computername}-log.txt"
+		    $regripper -r $NTUSERDAT -p runmru > "$exec_dir/mru.txt" 2>>"$output_dir/${computername}-log.txt"
+		    $regripper -r $NTUSERDAT -p muicache > "$exec_dir/muicache-ntuser.txt" 2>>"$output_dir/${computername}-log.txt"
 
 		    # Find Executables embedded
-		    $regripper -r $NTUSERDAT -p findexes > "$per_dir/user/${user}/findexes.txt" 2>>"$output_dir/${computername}-log.txt"
-		    $regripper -r $NTUSERDAT -p sizes > "$per_dir/user/${user}/sizes.txt" 2>>"$output_dir/${computername}-log.txt"
+		    $regripper -r $NTUSERDAT -p findexes > "$per_dir/findexes.txt" 2>>"$output_dir/${computername}-log.txt"
+		    $regripper -r $NTUSERDAT -p sizes > "$per_dir/sizes.txt" 2>>"$output_dir/${computername}-log.txt"
 		else
 			echo "[WARN] ${NTUSERDAT} not found"
 		fi
 
 	    # UsrClass asociado
 	    if [ -f $USRCLASS ]; then
-	        $regripper -r $USRCLASS -p shellbags > "$exec_dir/user/${user}/shellbags.txt" 2>>"$output_dir/${computername}-log.txt"
-	        $regripper -r $USRCLASS -p muicache > "$exec_dir/user/${user}/muicache-usrclass.txt" 2>>"$output_dir/${computername}-log.txt"
+	        $regripper -r $USRCLASS -p shellbags > "$exec_dir/shellbags.txt" 2>>"$output_dir/${computername}-log.txt"
+	        $regripper -r $USRCLASS -p muicache > "$exec_dir/muicache-usrclass.txt" 2>>"$output_dir/${computername}-log.txt"
 	    else
 			echo "[WARN] ${USRCLASS} not found"
 	    fi
@@ -369,7 +367,7 @@ if [ -d "$root_dir/Users" ]; then
 		    
 		    # Ejecutar lnkparse sobre el archivo
 		    echo "Procesando: $file" >>"$output_dir/${computername}-log.txt"
-		    lnkparse -t "$file" >> "$fs_dir/user/${user}/recent-lnk-targets.txt"
+		    lnkparse -t "$file" >> "$fs_dir/recent-lnk-targets.txt"
 		done
 		
 		## Automatically created LNK for documents opened using Microsoft Office products:
@@ -380,7 +378,7 @@ if [ -d "$root_dir/Users" ]; then
 		    
 		    # Ejecutar lnkparse sobre el archivo
 		    echo "Procesando: $file" >>"$output_dir/${computername}-log.txt"
-		    lnkparse -t "$file" >> "$fs_dir/user/${user}/office-lnk-targets.txt"
+		    lnkparse -t "$file" >> "$fs_dir/office-lnk-targets.txt"
 		done
 	    
 	    ## Users Desktop folder:
@@ -391,7 +389,7 @@ if [ -d "$root_dir/Users" ]; then
 		    
 		    # Ejecutar lnkparse sobre el archivo
 		    echo "Procesando: $file" >>"$output_dir/${computername}-log.txt"
-		    lnkparse -t "$file" >> "$fs_dir/user/${user}/desktop-lnk-targets.txt"
+		    lnkparse -t "$file" >> "$fs_dir/desktop-lnk-targets.txt"
 		done
 		
 		## Startup folders:
@@ -402,24 +400,24 @@ if [ -d "$root_dir/Users" ]; then
 		    
 		    # Ejecutar lnkparse sobre el archivo
 		    echo "Procesando: $file" >>"$output_dir/${computername}-log.txt"
-		    lnkparse -t "$file" >> "$fs_dir/user/${user}/startup-lnk-targets.txt"
+		    lnkparse -t "$file" >> "$fs_dir/startup-lnk-targets.txt"
 		done
 		
 		# Web Browsers
 		if [ -d "$EDGE" ]; then
-		    $hindsight -i "$EDGE" -o "$web_dir/user/${user}/edge" -l "$output_dir/${computername}-hindsight-log.txt" >/dev/null 2>&1
+		    $hindsight -i "$EDGE" -o "$web_dir/edge" -l "$output_dir/${computername}-hindsight-log.txt" >/dev/null 2>&1
 		else
 			echo "[WARN]: El directorio $EDGE no existe" >>"$output_dir/${computername}-log.txt"
 		fi
 		
 		if [ -d "$CHROME" ]; then
-		    $hindsight -i "$CHROME" -o "$web_dir/user/${user}/chrome" -l "$output_dir/${computername}-hindsight-log.txt" >/dev/null 2>&1
+		    $hindsight -i "$CHROME" -o "$web_dir/chrome" -l "$output_dir/${computername}-hindsight-log.txt" >/dev/null 2>&1
 		else
 			echo "[WARN]: El directorio $CHROME no existe" >>"$output_dir/${computername}-log.txt"
 		fi
 		
 		if [ -d "$FIREFOX" ]; then
-		    $hindsight -i "$FIREFOX" -o "$web_dir/user/${user}/firefox" -l "$output_dir/${computername}-hindsight-log.txt" >/dev/null 2>&1
+		    $hindsight -i "$FIREFOX" -o "$web_dir/firefox" -l "$output_dir/${computername}-hindsight-log.txt" >/dev/null 2>&1
 		else
 			echo "[WARN]: El directorio $FIREFOX no existe" >>"$output_dir/${computername}-log.txt"
 		fi
